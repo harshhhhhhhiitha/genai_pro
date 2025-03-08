@@ -6,10 +6,11 @@ from googletrans import Translator
 from gtts import gTTS
 import os
 import datetime
-import urllib.parse  # For encoding WhatsApp messages
+import urllib.parse
+import io
 
-# Configure API key
-API_KEY = "AIzaSyCf1hLjW3bip8_GtR-7Ltkwz3yeqpGhY5M"  # Replace with your actual API key
+# Configure API Key
+API_KEY = "YOUR_API_KEY_HERE"
 genai.configure(api_key=API_KEY)
 model = genai.GenerativeModel("gemini-1.5-flash")
 
@@ -162,20 +163,43 @@ if not st.session_state.logged_in:
 # ✅ Home Page (Image Upload & Captioning)
 if page == "Home":
     st.title("📸 ProVision AI - Image Captioning with Audio & WhatsApp Share")
-    uploaded_file = st.file_uploader("Upload an image...", type=["png", "jpg", "jpeg"])
-    user_prompt = st.text_area("Enter your prompt:")
+    
+    # Sidebar for image upload and caption style
+    with st.sidebar:
+        uploaded_file = st.file_uploader("📂 Upload an image", type=["png", "jpg", "jpeg"])
+        caption_style = st.radio("🎨 Select Caption Style:", 
+                                 ["Formal", "Funny", "Detailed", "Poetic"])
+        generate_button = st.button("🚀 Generate Caption")
 
-    if uploaded_file and st.button("Generate Response"):
+    # Display Image
+    if uploaded_file:
         image = Image.open(uploaded_file)
-        st.image(image, caption="Uploaded Image", use_column_width=True)
-        image_path = save_uploaded_image(image, st.session_state.username)
+        st.image(image, caption="🖼 Uploaded Image", use_column_width=True)
 
-        # Generate AI response
-        response = model.generate_content([{"mime_type": "image/png", "data": open(image_path, "rb").read()}, user_prompt])
-        translated_text = translator.translate(response.text, dest="en").text
+    # Generate Caption
+    if uploaded_file and generate_button:
+        with st.spinner("✨ Generating Caption..."):
+            image_path = save_uploaded_image(image, st.session_state.username)
 
-        st.subheader("📝 Generated Response:")
-        st.write(translated_text)
+            # Caption style prompts
+            prompt_map = {
+                "Formal": "Provide a clear and professional caption for this image.",
+                "Funny": "Make a humorous caption for this image.",
+                "Detailed": "Describe this image in detail, including objects, text, and context.",
+                "Poetic": "Write a poetic description of this image."
+            }
+
+            # AI Response
+            response = model.generate_content([
+                {"mime_type": "image/png", "data": open(image_path, "rb").read()},
+                prompt_map[caption_style]
+            ])
+            translated_text = translator.translate(response.text, dest="en").text
+
+        # Display Caption
+        st.success("✅ Caption Generated!")
+        st.subheader("📝 Your Caption:")
+        st.write(f"**{translated_text}**")
 
         # ✅ Generate and display audio
         audio_path = generate_audio(translated_text, st.session_state.username)
@@ -187,7 +211,7 @@ if page == "Home":
         st.markdown(f"[📲 Share on WhatsApp]({whatsapp_link})", unsafe_allow_html=True)
 
         # Save caption to database
-        save_caption(st.session_state.username, image_path, user_prompt, translated_text, audio_path)
+        save_caption(st.session_state.username, image_path, caption_style, translated_text, audio_path)
 
 # ✅ History Page (Past Captions & Audio)
 elif page == "History":
